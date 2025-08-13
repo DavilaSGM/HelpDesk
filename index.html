@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Portal Mesa de Ayuda</title>
+  <title>Mesa de Ayuda</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
@@ -25,7 +25,7 @@
 </head>
 <body>
 
-<h2>Portal Mesa de Ayuda</h2>
+<h2>Mesa de Ayuda</h2>
 
 <div>
   <button id="btnAll">Todos</button>
@@ -47,7 +47,7 @@
 </table>
 
 <script>
-const URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRY0BZ-pqh9BXOe13dEk5RxFlGiSX1BkeKupM4b1BVtygR8KWuDE4jjEQTSd796v-JSG93fIzHM32Wd/pub?output=csv&gid=922747199"; // <--- reemplaza con tu enlace CSV publicado
+const URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRY0BZ-pqh9BXOe13dEk5RxFlGiSX1BkeKupM4b1BVtygR8KWuDE4jjEQTSd796v-JSG93fIzHM32Wd/pub?output=csv&gid=922747199";
 
 let filas = [], chartPie, chartBar, filtroEstado = "Todos";
 
@@ -65,8 +65,11 @@ fetch(URL)
   .catch(err => console.error("Error cargando CSV:", err));
 
 function construirVista() {
-  const headers = filas[0];
-  const rows = filas.slice(1);
+  if (filas.length === 0) return;
+
+  const headers = filas[0].map(h => h.trim());
+  const idxEstatus = headers.findIndex(h => h.toLowerCase() === "estatus");
+  const rows = filas.slice(1).filter(r => r.length > 0);
 
   thead.innerHTML = headers.map(h => `<th>${h}</th>`).join("");
   tbody.innerHTML = "";
@@ -74,9 +77,9 @@ function construirVista() {
   const textoBusqueda = inputBuscar.value.trim().toLowerCase();
 
   const filtrados = rows.filter(r => {
-    const est = r[headers.indexOf("ESTATUS")].toLowerCase();
+    const est = (r[idxEstatus] || "").toLowerCase();
     const estadoOk = filtroEstado === "Todos" || est === filtroEstado.toLowerCase();
-    const buscaOk = textoBusqueda === "" || r.some(c => c.toLowerCase().includes(textoBusqueda));
+    const buscaOk = textoBusqueda === "" || r.some(c => (c || "").toLowerCase().includes(textoBusqueda));
     return estadoOk && buscaOk;
   });
 
@@ -84,20 +87,20 @@ function construirVista() {
 
   filtrados.forEach(fila => {
     const tr = document.createElement("tr");
-    const est = fila[headers.indexOf("ESTATUS")].toLowerCase();
+    const est = (fila[idxEstatus] || "").toLowerCase();
     if (est.includes("proceso")) tr.classList.add("en-proceso");
     if (est.includes("completado")) tr.classList.add("completado");
     if (est.includes("cancelado")) tr.classList.add("cancelado");
     fila.forEach(c => {
       const td = document.createElement("td");
-      td.textContent = c.trim() !== "" ? c : "No aplica";
+      td.textContent = c && c.trim() !== "" ? c : "No aplica";
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
   });
 
   const estados = ["En Proceso", "Completados", "Cancelados"];
-  const data = estados.map(e => rows.filter(r => r[headers.indexOf("ESTATUS")].toLowerCase() === e.toLowerCase()).length);
+  const data = estados.map(e => rows.filter(r => (r[idxEstatus] || "").toLowerCase() === e.toLowerCase()).length);
 
   if (chartPie) chartPie.destroy();
   chartPie = new Chart(document.getElementById("pieChart"), {
