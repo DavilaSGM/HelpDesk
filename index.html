@@ -1,27 +1,27 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Mesa de Ayuda</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  h2 { margin-bottom: 10px; }
-  input, button { padding: 8px; margin: 5px; border: none; cursor: pointer; }
-  #btnAll { background-color: #4CAF50; color: white; }
-  #btnProc { background-color: orange; color: white; }
-  #btnComp { background-color: green; color: white; }
-  #btnCanc { background-color: red; color: white; }
-  #btnClear { background-color: gray; color: white; }
-  #contador { font-size: 18px; margin: 15px 0; font-weight: bold; }
-  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-  th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-  th { background: #f4f4f4; }
-  .en-proceso { background-color: #fff3cd; }
-  .completado { background-color: #d4edda; }
-  .cancelado { background-color: #f8d7da; }
-  canvas { margin-top: 20px; }
-</style>
+  <meta charset="UTF-8">
+  <title>Mesa de Ayuda</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { margin-bottom: 10px; }
+    input, button { padding: 8px; margin: 5px; border: none; cursor: pointer; }
+    #btnAll { background-color: #4CAF50; color: white; }
+    #btnProc { background-color: orange; color: white; }
+    #btnComp { background-color: green; color: white; }
+    #btnCanc { background-color: red; color: white; }
+    #btnClear { background-color: gray; color: white; }
+    #contador { font-size: 18px; margin: 15px 0; font-weight: bold; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #f4f4f4; }
+    .en-proceso { background-color: #fff3cd; }
+    .completado { background-color: #d4edda; }
+    .cancelado { background-color: #f8d7da; }
+    canvas { margin-top: 20px; }
+  </style>
 </head>
 <body>
 
@@ -48,12 +48,10 @@
 
 <script>
 const SHEET_ID = "1foUHnRQkIQClSuVDyUovkIRqnLImZMrldJavv-xA_Dc";
-const GID = "922747199"; // Cambia si tu pestaña no es la primera
+const GID = "922747199";
 const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
 
-let filas = [];
-let chartPie, chartBar;
-let filtroEstado = "Todos";
+let filas = [], chartPie, chartBar, filtroEstado = "Todos";
 
 const tbody = document.getElementById("tbody");
 const thead = document.getElementById("thead");
@@ -75,32 +73,31 @@ function construirVista() {
   thead.innerHTML = headers.map(h => `<th>${h}</th>`).join("");
   tbody.innerHTML = "";
 
-  const textoBusqueda = inputBuscar.value.toLowerCase();
+  const textoBusqueda = inputBuscar.value.trim().toLowerCase();
 
   const filtrados = rows.filter(r => {
-    const estadoOk = filtroEstado === "Todos" || r[headers.indexOf("ESTATUS")].toLowerCase() === filtroEstado.toLowerCase();
-    const busquedaOk = textoBusqueda === "" || r.some(col => col.toLowerCase().includes(textoBusqueda));
-    return estadoOk && busquedaOk;
+    const est = r[headers.indexOf("ESTATUS")].toLowerCase();
+    const estadoOk = filtroEstado === "Todos" || est === filtroEstado.toLowerCase();
+    const buscaOk = textoBusqueda === "" || r.some(c => c.toLowerCase().includes(textoBusqueda));
+    return estadoOk && buscaOk;
   });
 
   contador.textContent = `Total: ${filtrados.length}`;
 
   filtrados.forEach(fila => {
     const tr = document.createElement("tr");
-    const estatus = fila[headers.indexOf("ESTATUS")].toLowerCase();
-    if (estatus.includes("proceso")) tr.classList.add("en-proceso");
-    if (estatus.includes("completado")) tr.classList.add("completado");
-    if (estatus.includes("cancelado")) tr.classList.add("cancelado");
-
-    fila.forEach(col => {
+    const est = fila[headers.indexOf("ESTATUS")].toLowerCase();
+    if (est.includes("proceso")) tr.classList.add("en-proceso");
+    if (est.includes("completado")) tr.classList.add("completado");
+    if (est.includes("cancelado")) tr.classList.add("cancelado");
+    fila.forEach(c => {
       const td = document.createElement("td");
-      td.textContent = col.trim() !== "" ? col : "No aplica";
+      td.textContent = c.trim() !== "" ? c : "No aplica";
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
   });
 
-  // Contar por estatus para gráficos
   const estados = ["En Proceso", "Completados", "Cancelados"];
   const data = estados.map(e => rows.filter(r => r[headers.indexOf("ESTATUS")].toLowerCase() === e.toLowerCase()).length);
 
@@ -109,10 +106,7 @@ function construirVista() {
     type: 'pie',
     data: {
       labels: estados,
-      datasets: [{
-        data,
-        backgroundColor: ['orange', 'green', 'red']
-      }]
+      datasets: [{ data, backgroundColor: ['orange', 'green', 'red'] }]
     }
   });
 
@@ -131,16 +125,13 @@ function construirVista() {
   });
 }
 
-// Botones de filtro
 document.getElementById("btnAll").onclick = () => { filtroEstado = "Todos"; construirVista(); };
 document.getElementById("btnProc").onclick = () => { filtroEstado = "En Proceso"; construirVista(); };
 document.getElementById("btnComp").onclick = () => { filtroEstado = "Completados"; construirVista(); };
 document.getElementById("btnCanc").onclick = () => { filtroEstado = "Cancelados"; construirVista(); };
 
-// Buscador
 inputBuscar.addEventListener("input", construirVista);
 
-// Botón limpiar
 document.getElementById("btnClear").onclick = () => {
   filtroEstado = "Todos";
   inputBuscar.value = "";
