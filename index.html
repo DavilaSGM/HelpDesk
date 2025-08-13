@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Portal Mesa de Ayuda</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  h2 { margin-bottom: 10px; }
+  input, button { padding: 8px; margin: 5px; border: none; cursor: pointer; }
+  #btnAll { background-color: #4CAF50; color: white; }
+  #btnProc { background-color: orange; color: white; }
+  #btnComp { background-color: green; color: white; }
+  #btnCanc { background-color: red; color: white; }
+  #btnClear { background-color: gray; color: white; }
+  #contador { font-size: 18px; margin: 15px 0; font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+  th { background: #f4f4f4; }
+  .en-proceso { background-color: #fff3cd; }
+  .completado { background-color: #d4edda; }
+  .cancelado { background-color: #f8d7da; }
+  canvas { margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h2>Portal Mesa de Ayuda</h2>
+
+<div>
+  <button id="btnAll">Todos</button>
+  <button id="btnProc">En Proceso</button>
+  <button id="btnComp">Completados</button>
+  <button id="btnCanc">Cancelados</button>
+  <input type="text" id="buscar" placeholder="Buscar ticket o palabra clave...">
+  <button id="btnClear">Limpiar</button>
+</div>
+
+<div id="contador"></div>
+
+<canvas id="pieChart" width="400" height="200"></canvas>
+<canvas id="barChart" width="400" height="200"></canvas>
+
+<table id="tabla">
+  <thead><tr id="thead"></tr></thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script>
+const SHEET_ID = "1foUHnRQkIQClSuVDyUovkIRqnLImZMrldJavv-xA_Dc";
+const GID = "0"; // Cambia si tu pestaña no es la primera
+const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+
+let filas = [];
+let chartPie, chartBar;
+let filtroEstado = "Todos";
+
+const tbody = document.getElementById("tbody");
+const thead = document.getElementById("thead");
+const contador = document.getElementById("contador");
+const inputBuscar = document.getElementById("buscar");
+
+fetch(URL)
+  .then(res => res.text())
+  .then(csv => {
+    filas = csv.trim().split("\n").map(r => r.split(","));
+    construirVista();
+  })
+  .catch(err => console.error("Error cargando CSV:", err));
+
+function construirVista() {
+  const headers = filas[0];
+  const rows = filas.slice(1);
+
+  thead.innerHTML = headers.map(h => `<th>${h}</th>`).join("");
+  tbody.innerHTML = "";
+
+  const textoBusqueda = inputBuscar.value.toLowerCase();
+
+  const filtrados = rows.filter(r => {
+    const estadoOk = filtroEstado === "Todos" || r[headers.indexOf("ESTATUS")].toLowerCase() === filtroEstado.toLowerCase();
+    const busquedaOk = textoBusqueda === "" || r.some(col => col.toLowerCase().includes(textoBusqueda));
+    return estadoOk && busquedaOk;
+  });
+
+  contador.textContent = `Total: ${filtrados.length}`;
+
+  filtrados.forEach(fila => {
+    const tr = document.createElement("tr");
+    const estatus = fila[headers.indexOf("ESTATUS")].toLowerCase();
+    if (estatus.includes("proceso")) tr.classList.add("en-proceso");
+    if (estatus.includes("completado")) tr.classList.add("completado");
+    if (estatus.includes("cancelado")) tr.classList.add("cancelado");
+
+    fila.forEach(col => {
+      const td = document.createElement("td");
+      td.textContent = col.trim() !== "" ? col : "No aplica";
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  // Contar por estatus para gráficos
+  const estados = ["En Proceso", "Completados", "Cancelados"];
+  const data = estados.map(e => rows.filter(r => r[headers.indexOf("ESTATUS")].toLowerCase() === e.toLowerCase()).length);
+
+  if (chartPie) chartPie.destroy();
+  chartPie = new Chart(document.getElementById("pieChart"), {
+    type: 'pie',
+    data: {
+      labels: estados,
+      datasets: [{
+        data,
+        backgroundColor: ['orange', 'green', 'red']
+      }]
+    }
+  });
+
+  if (chartBar) chartBar.destroy();
+  chartBar = new Chart(document.getElementById("barChart"), {
+    type: 'bar',
+    data: {
+      labels: estados,
+      datasets: [{
+        label: 'Cantidad de Tickets',
+        data,
+        backgroundColor: ['orange', 'green', 'red']
+      }]
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// Botones de filtro
+document.getElementById("btnAll").onclick = () => { filtroEstado = "Todos"; construirVista(); };
+document.getElementById("btnProc").onclick = () => { filtroEstado = "En Proceso"; construirVista(); };
+document.getElementById("btnComp").onclick = () => { filtroEstado = "Completados"; construirVista(); };
+document.getElementById("btnCanc").onclick = () => { filtroEstado = "Cancelados"; construirVista(); };
+
+// Buscador
+inputBuscar.addEventListener("input", construirVista);
+
+// Botón limpiar
+document.getElementById("btnClear").onclick = () => {
+  filtroEstado = "Todos";
+  inputBuscar.value = "";
+  construirVista();
+};
+</script>
+
+</body>
+</html>
