@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mesa de Ayuda</title>
+  <title>Portal Mesa de Ayuda</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
@@ -25,7 +25,7 @@
 </head>
 <body>
 
-<h2>Mesa de Ayuda</h2>
+<h2>Portal Mesa de Ayuda</h2>
 
 <div>
   <button id="btnAll">Todos</button>
@@ -47,9 +47,7 @@
 </table>
 
 <script>
-const SHEET_ID = "1foUHnRQkIQClSuVDyUovkIRqnLImZMrldJavv-xA_Dc";
-const GID = "922747199";
-const URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRY0BZ-pqh9BXOe13dEk5RxFlGiSX1BkeKupM4b1BVtygR8KWuDE4jjEQTSd796v-JSG93fIzHM32Wd/pubhtml?gid=922747199&single=true`;
+const URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRY0BZ-pqh9BXOe13dEk5RxFlGiSX1BkeKupM4b1BVtygR8KWuDE4jjEQTSd796v-JSG93fIzHM32Wd/pub?output=csv&gid=922747199"; // <--- reemplaza con tu enlace CSV publicado
 
 let filas = [], chartPie, chartBar, filtroEstado = "Todos";
 
@@ -104,10 +102,7 @@ function construirVista() {
   if (chartPie) chartPie.destroy();
   chartPie = new Chart(document.getElementById("pieChart"), {
     type: 'pie',
-    data: {
-      labels: estados,
-      datasets: [{ data, backgroundColor: ['orange', 'green', 'red'] }]
-    }
+    data: { labels: estados, datasets: [{ data, backgroundColor: ['orange', 'green', 'red'] }] }
   });
 
   if (chartBar) chartBar.destroy();
@@ -115,11 +110,7 @@ function construirVista() {
     type: 'bar',
     data: {
       labels: estados,
-      datasets: [{
-        label: 'Cantidad de Tickets',
-        data,
-        backgroundColor: ['orange', 'green', 'red']
-      }]
+      datasets: [{ label: 'Cantidad de Tickets', data, backgroundColor: ['orange', 'green', 'red'] }]
     },
     options: { responsive: true, scales: { y: { beginAtZero: true } } }
   });
@@ -129,9 +120,7 @@ document.getElementById("btnAll").onclick = () => { filtroEstado = "Todos"; cons
 document.getElementById("btnProc").onclick = () => { filtroEstado = "En Proceso"; construirVista(); };
 document.getElementById("btnComp").onclick = () => { filtroEstado = "Completados"; construirVista(); };
 document.getElementById("btnCanc").onclick = () => { filtroEstado = "Cancelados"; construirVista(); };
-
 inputBuscar.addEventListener("input", construirVista);
-
 document.getElementById("btnClear").onclick = () => {
   filtroEstado = "Todos";
   inputBuscar.value = "";
