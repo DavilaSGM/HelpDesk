@@ -95,7 +95,7 @@ function construirVista() {
 
   const filtrados = rows.filter(r => {
     const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
-    const estadoOk = filtroEstado === "Todos" || est === filtroEstado.toLowerCase();
+    const estadoOk = filtroEstado === "Todos" || est.includes(filtroEstado.toLowerCase());
     const buscaOk = textoBusqueda === "" || r.some(c => (c || "").toLowerCase().includes(textoBusqueda));
     return estadoOk && buscaOk;
   });
@@ -117,7 +117,10 @@ function construirVista() {
   });
 
   const estados = ["En Proceso", "Completados", "Cancelados"];
-  const data = estados.map(e => rows.filter(r => (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase() === e.toLowerCase()).length);
+  const data = estados.map(e => rows.filter(r => {
+    const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
+    return est.includes(e.toLowerCase());
+  }).length);
 
   if (chartPie) chartPie.destroy();
   chartPie = new Chart(document.getElementById("pieChart"), {
