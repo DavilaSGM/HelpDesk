@@ -10,7 +10,7 @@
     input, button { padding: 8px; margin: 5px; border: none; cursor: pointer; }
     #btnAll { background-color: #4CAF50; color: white; }
     #btnProc { background-color: orange; color: white; }
-    #btnComp { background-color: green; color: white; }
+    #btnAten { background-color: green; color: white; }
     #btnCanc { background-color: red; color: white; }
     #btnClear { background-color: gray; color: white; }
     #contador { font-size: 18px; margin: 15px 0; font-weight: bold; }
@@ -18,7 +18,7 @@
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background: #f4f4f4; }
     .en-proceso { background-color: #fff3cd; }
-    .completado { background-color: #d4edda; }
+    .atendido { background-color: #d4edda; }
     .cancelado { background-color: #f8d7da; }
     .graficas { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
     canvas { max-width: 300px; height: auto; }
@@ -31,8 +31,8 @@
 <div>
   <button id="btnAll">Todos</button>
   <button id="btnProc">En Proceso</button>
-  <button id="btnComp">Completados</button>
-  <button id="btnCanc">Cancelados</button>
+  <button id="btnAten">Atendido</button>
+  <button id="btnCanc">Cancelado</button>
   <input type="text" id="buscar" placeholder="Buscar ticket o palabra clave...">
   <button id="btnClear">Limpiar</button>
 </div>
@@ -95,7 +95,7 @@ function construirVista() {
 
   const filtrados = rows.filter(r => {
     const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
-    const estadoOk = filtroEstado === "Todos" || est.includes(filtroEstado.toLowerCase());
+    const estadoOk = filtroEstado === "Todos" || est === filtroEstado.toLowerCase();
     const buscaOk = textoBusqueda === "" || r.some(c => (c || "").toLowerCase().includes(textoBusqueda));
     return estadoOk && buscaOk;
   });
@@ -106,7 +106,7 @@ function construirVista() {
     const tr = document.createElement("tr");
     const est = (fila[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
     if (est.includes("proceso")) tr.classList.add("en-proceso");
-    if (est.includes("completado")) tr.classList.add("completado");
+    if (est.includes("atendido")) tr.classList.add("atendido");
     if (est.includes("cancelado")) tr.classList.add("cancelado");
     fila.forEach(c => {
       const td = document.createElement("td");
@@ -116,10 +116,10 @@ function construirVista() {
     tbody.appendChild(tr);
   });
 
-  const estados = ["En Proceso", "Completados", "Cancelados"];
+  const estados = ["En Proceso", "Atendido", "Cancelado"];
   const data = estados.map(e => rows.filter(r => {
     const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
-    return est.includes(e.toLowerCase());
+    return est === e.toLowerCase();
   }).length);
 
   if (chartPie) chartPie.destroy();
@@ -142,8 +142,8 @@ function construirVista() {
 
 document.getElementById("btnAll").onclick = () => { filtroEstado = "Todos"; construirVista(); };
 document.getElementById("btnProc").onclick = () => { filtroEstado = "En Proceso"; construirVista(); };
-document.getElementById("btnComp").onclick = () => { filtroEstado = "Completados"; construirVista(); };
-document.getElementById("btnCanc").onclick = () => { filtroEstado = "Cancelados"; construirVista(); };
+document.getElementById("btnAten").onclick = () => { filtroEstado = "Atendido"; construirVista(); };
+document.getElementById("btnCanc").onclick = () => { filtroEstado = "Cancelado"; construirVista(); };
 inputBuscar.addEventListener("input", construirVista);
 document.getElementById("btnClear").onclick = () => {
   filtroEstado = "Todos";
