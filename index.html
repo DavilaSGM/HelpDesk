@@ -20,7 +20,8 @@
     .en-proceso { background-color: #fff3cd; }
     .completado { background-color: #d4edda; }
     .cancelado { background-color: #f8d7da; }
-    canvas { margin-top: 20px; }
+    .graficas { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+    canvas { max-width: 300px; height: auto; }
   </style>
 </head>
 <body>
@@ -38,8 +39,10 @@
 
 <div id="contador"></div>
 
-<canvas id="pieChart" width="400" height="200"></canvas>
-<canvas id="barChart" width="400" height="200"></canvas>
+<div class="graficas">
+  <canvas id="pieChart"></canvas>
+  <canvas id="barChart"></canvas>
+</div>
 
 <table id="tabla">
   <thead><tr id="thead"></tr></thead>
@@ -67,9 +70,23 @@ fetch(URL)
 function construirVista() {
   if (filas.length === 0) return;
 
-  const headers = filas[0].map(h => h.trim());
-  const idxEstatus = headers.findIndex(h => h.toLowerCase() === "estatus");
-  const rows = filas.slice(1).filter(r => r.length > 0);
+  const headersOriginal = filas[0].map(h => h.trim());
+  const idxEstatus = headersOriginal.findIndex(h => h.toLowerCase() === "estatus");
+
+  const columnasMostrar = [
+    "Ticket",
+    "Fecha",
+    "Tiempo de ticket",
+    "Nombre Completo del solicitante",
+    "Solicitud",
+    "ESTATUS",
+    "FECHA DE ATENCIÓN"
+  ];
+
+  const idxMostrar = columnasMostrar.map(c => headersOriginal.findIndex(h => h.toLowerCase() === c.toLowerCase()));
+
+  const headers = idxMostrar.map(i => headersOriginal[i]);
+  const rows = filas.slice(1).filter(r => r.length > 0).map(r => idxMostrar.map(i => r[i] || ""));
 
   thead.innerHTML = headers.map(h => `<th>${h}</th>`).join("");
   tbody.innerHTML = "";
@@ -77,7 +94,7 @@ function construirVista() {
   const textoBusqueda = inputBuscar.value.trim().toLowerCase();
 
   const filtrados = rows.filter(r => {
-    const est = (r[idxEstatus] || "").toLowerCase();
+    const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
     const estadoOk = filtroEstado === "Todos" || est === filtroEstado.toLowerCase();
     const buscaOk = textoBusqueda === "" || r.some(c => (c || "").toLowerCase().includes(textoBusqueda));
     return estadoOk && buscaOk;
@@ -87,7 +104,7 @@ function construirVista() {
 
   filtrados.forEach(fila => {
     const tr = document.createElement("tr");
-    const est = (fila[idxEstatus] || "").toLowerCase();
+    const est = (fila[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
     if (est.includes("proceso")) tr.classList.add("en-proceso");
     if (est.includes("completado")) tr.classList.add("completado");
     if (est.includes("cancelado")) tr.classList.add("cancelado");
@@ -100,12 +117,13 @@ function construirVista() {
   });
 
   const estados = ["En Proceso", "Completados", "Cancelados"];
-  const data = estados.map(e => rows.filter(r => (r[idxEstatus] || "").toLowerCase() === e.toLowerCase()).length);
+  const data = estados.map(e => rows.filter(r => (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase() === e.toLowerCase()).length);
 
   if (chartPie) chartPie.destroy();
   chartPie = new Chart(document.getElementById("pieChart"), {
     type: 'pie',
-    data: { labels: estados, datasets: [{ data, backgroundColor: ['orange', 'green', 'red'] }] }
+    data: { labels: estados, datasets: [{ data, backgroundColor: ['orange', 'green', 'red'] }] },
+    options: { responsive: true, maintainAspectRatio: false }
   });
 
   if (chartBar) chartBar.destroy();
@@ -115,7 +133,7 @@ function construirVista() {
       labels: estados,
       datasets: [{ label: 'Cantidad de Tickets', data, backgroundColor: ['orange', 'green', 'red'] }]
     },
-    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
   });
 }
 
