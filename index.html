@@ -22,6 +22,11 @@
     .cancelado { background-color: #f8d7da; }
     .graficas { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
     canvas { max-width: 300px; height: auto; }
+    .resumen-estados { margin-top: 15px; display: flex; gap: 20px; flex-wrap: wrap; font-weight: bold; }
+    .resumen-item { padding: 8px 12px; border-radius: 5px; color: white; }
+    .resumen-proceso { background-color: orange; }
+    .resumen-atendido { background-color: green; }
+    .resumen-cancelado { background-color: red; }
   </style>
 </head>
 <body>
@@ -38,6 +43,8 @@
 </div>
 
 <div id="contador"></div>
+
+<div class="resumen-estados" id="resumenEstados"></div>
 
 <div class="graficas">
   <canvas id="pieChart"></canvas>
@@ -57,6 +64,7 @@ let filas = [], chartPie, chartBar, filtroEstado = "Todos";
 const tbody = document.getElementById("tbody");
 const thead = document.getElementById("thead");
 const contador = document.getElementById("contador");
+const resumenEstados = document.getElementById("resumenEstados");
 const inputBuscar = document.getElementById("buscar");
 
 fetch(URL)
@@ -117,10 +125,17 @@ function construirVista() {
   });
 
   const estados = ["En Proceso", "Atendido", "Cancelado"];
-  const data = estados.map(e => rows.filter(r => {
+  const data = estados.map(e => filtrados.filter(r => {
     const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
     return est === e.toLowerCase();
   }).length);
+
+  // Resumen numérico (basado en filtrados)
+  resumenEstados.innerHTML = `
+    <div class="resumen-item resumen-proceso">En Proceso: ${data[0]}</div>
+    <div class="resumen-item resumen-atendido">Atendido: ${data[1]}</div>
+    <div class="resumen-item resumen-cancelado">Cancelado: ${data[2]}</div>
+  `;
 
   if (chartPie) chartPie.destroy();
   chartPie = new Chart(document.getElementById("pieChart"), {
@@ -134,9 +149,18 @@ function construirVista() {
     type: 'bar',
     data: {
       labels: estados,
-      datasets: [{ label: 'Cantidad de Tickets', data, backgroundColor: ['orange', 'green', 'red'] }]
+      datasets: estados.map((estado, i) => ({
+        label: estado,
+        data: [data[i]],
+        backgroundColor: ['orange', 'green', 'red'][i]
+      }))
     },
-    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true } },
+      scales: { y: { beginAtZero: true } }
+    }
   });
 }
 
