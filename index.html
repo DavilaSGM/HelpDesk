@@ -80,6 +80,7 @@ function construirVista() {
 
   const headersOriginal = filas[0].map(h => h.trim());
   const idxEstatus = headersOriginal.findIndex(h => h.toLowerCase() === "estatus");
+  const idxFecha = headersOriginal.findIndex(h => h.toLowerCase() === "fecha");
 
   const columnasMostrar = [
     "Ticket",
@@ -101,11 +102,19 @@ function construirVista() {
 
   const textoBusqueda = inputBuscar.value.trim().toLowerCase();
 
-  const filtrados = rows.filter(r => {
+  // Filtrar datos según estado y búsqueda
+  let filtrados = rows.filter(r => {
     const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
     const estadoOk = filtroEstado === "Todos" || est === filtroEstado.toLowerCase();
     const buscaOk = textoBusqueda === "" || r.some(c => (c || "").toLowerCase().includes(textoBusqueda));
     return estadoOk && buscaOk;
+  });
+
+  // Ordenar por fecha descendente (más reciente primero)
+  filtrados.sort((a, b) => {
+    const fechaA = new Date(a[headers.findIndex(h => h.toLowerCase() === "fecha")].split("/").reverse().join("-"));
+    const fechaB = new Date(b[headers.findIndex(h => h.toLowerCase() === "fecha")].split("/").reverse().join("-"));
+    return fechaB - fechaA;
   });
 
   contador.textContent = `Total: ${filtrados.length}`;
@@ -149,16 +158,16 @@ function construirVista() {
     type: 'bar',
     data: {
       labels: estados,
-      datasets: estados.map((estado, i) => ({
-        label: estado,
-        data: [data[i]],
-        backgroundColor: ['orange', 'green', 'red'][i]
-      }))
+      datasets: [{
+        label: 'Tickets',
+        data: data,
+        backgroundColor: ['orange', 'green', 'red']
+      }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: true } },
+      plugins: { legend: { display: false } }, // Solo etiquetas en eje X
       scales: { y: { beginAtZero: true } }
     }
   });
