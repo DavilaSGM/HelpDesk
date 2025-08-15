@@ -15,12 +15,14 @@
     #btnCanc { background-color: red; color: white; }
     #btnClear { background-color: gray; color: white; }
     #contador { font-size: 18px; margin: 15px 0; font-weight: bold; }
+    #alertas { font-size: 16px; font-weight: bold; color: red; margin-bottom: 10px; }
     table { border-collapse: collapse; width: 100%; margin-top: 20px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background: #f4f4f4; }
     .en-proceso { background-color: #fff3cd; }
     .atendido { background-color: #d4edda; }
     .cancelado { background-color: #f8d7da; }
+    .alerta { background-color: #ffcccc !important; font-weight: bold; }
     .graficas { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
     canvas { max-width: 300px; height: auto; }
     .resumen-estados { margin-top: 15px; display: flex; gap: 20px; flex-wrap: wrap; font-weight: bold; }
@@ -44,6 +46,7 @@
 </div>
 
 <div id="contador"></div>
+<div id="alertas"></div>
 
 <div class="resumen-estados" id="resumenEstados"></div>
 
@@ -79,9 +82,24 @@ const thead = document.getElementById("thead");
 const contador = document.getElementById("contador");
 const resumenEstados = document.getElementById("resumenEstados");
 const inputBuscar = document.getElementById("buscar");
+const alertasDiv = document.getElementById("alertas");
 
 const norm = s => (s ?? "").toString().trim().toLowerCase();
 const getVal = (row, desired) => row[keyMap[norm(desired)]] ?? "";
+
+function parseFecha(str) {
+  const s = (str || "").toString().trim();
+  if (!s) return new Date(0);
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+    let [d,m,y] = s.split("/");
+    if (y.length === 2) y = "20" + y;
+    return new Date(+y, +m - 1, +d);
+  }
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(s)) {
+    return new Date(s);
+  }
+  return new Date(s);
+}
 
 function cargar() {
   Papa.parse(URL, {
@@ -114,11 +132,11 @@ function construirVista() {
     thead.innerHTML = ""; tbody.innerHTML = "";
     contador.textContent = "Total: 0";
     resumenEstados.innerHTML = "";
+    alertasDiv.textContent = "";
     return;
   }
 
   thead.innerHTML = columnasMostrar.map(h => `<th>${h}</th>`).join("");
-
   const q = norm(inputBuscar.value);
 
   const filtrados = registros.filter(row => {
@@ -128,23 +146,37 @@ function construirVista() {
     return estadoOk && textoOk;
   });
 
-  // Orden por Ticket descendente (último primero)
+  // Orden por Ticket descendente
   filtrados.sort((a, b) => {
     const tA = parseInt(getVal(a, "Ticket"), 10) || 0;
     const tB = parseInt(getVal(b, "Ticket"), 10) || 0;
     return tB - tA;
   });
 
+  let alertasCount = 0;
+
   tbody.innerHTML = "";
   filtrados.forEach(row => {
     const tr = document.createElement("tr");
     const est = norm(getVal(row, "ESTATUS"));
+    const fecha = parseFecha(getVal(row, "Fecha"));
+    const diasAbierto = Math.floor((new Date() - fecha) / (1000*60*60*24));
+
     if (est.includes("proceso")) tr.classList.add("en-proceso");
     else if (est.includes("atendido")) tr.classList.add("atendido");
     else if (est.includes("cancelado")) tr.classList.add("cancelado");
 
+    // Marcar como alerta si más de 5 días en proceso
+    if (est.includes("proceso") && diasAbierto >= 5) {
+      tr.classList.add("alerta");
+      alertasCount++;
+    }
+
     columnasMostrar.forEach(col => {
-      const val = (getVal(row, col) || "").toString().trim();
+      let val = (getVal(row, col) || "").toString().trim();
+      if (col === "ESTATUS" && est.includes("proceso") && diasAbierto >= 5) {
+        val = "🚨 " + val;
+      }
       const td = document.createElement("td");
       td.textContent = val !== "" ? val : "No aplica";
       tr.appendChild(td);
@@ -153,6 +185,9 @@ function construirVista() {
   });
 
   contador.textContent = `Total: ${filtrados.length}`;
+  alertasDiv.textContent = alertasCount > 0 
+    ? `🚨 Tickets con más de 5 días abiertos: ${alertasCount}` 
+    : "";
 
   const estados = ["En Proceso", "Atendido", "Cancelado"];
   const data = estados.map(e =>
