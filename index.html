@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Mesa de Ayuda</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
@@ -59,15 +60,10 @@
 <script>
 const URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRY0BZ-pqh9BXOe13dEk5RxFlGiSX1BkeKupM4b1BVtygR8KWuDE4jjEQTSd796v-JSG93fIzHM32Wd/pub?output=csv&gid=922747199";
 
-let rowsOriginal = [], chartPie, chartBar, filtroEstado = "Todos";
+let registros = [];           // objetos {columna: valor} del CSV
+let keyMap = {};              // mapa de nombre normalizado -> nombre real
+let filtroEstado = "Todos";   // "Todos" | "En Proceso" | "Atendido" | "Cancelado"
 
-const tbody = document.getElementById("tbody");
-const thead = document.getElementById("thead");
-const contador = document.getElementById("contador");
-const resumenEstados = document.getElementById("resumenEstados");
-const inputBuscar = document.getElementById("buscar");
-
-// Columnas a mostrar en tabla
 const columnasMostrar = [
   "Ticket",
   "Fecha",
@@ -78,73 +74,114 @@ const columnasMostrar = [
   "FECHA DE ATENCIÓN"
 ];
 
-fetch(URL)
-  .then(res => res.text())
-  .then(csv => {
-    rowsOriginal = csv.trim().split("\n").map(r => r.split(","));
-    construirVista();
-  })
-  .catch(err => console.error("Error cargando CSV:", err));
+const tbody = document.getElementById("tbody");
+const thead = document.getElementById("thead");
+const contador = document.getElementById("contador");
+const resumenEstados = document.getElementById("resumenEstados");
+const inputBuscar = document.getElementById("buscar");
+
+const norm = s => (s ?? "").toString().trim().toLowerCase();
+const getVal = (row, desired) => row[keyMap[norm(desired)]] ?? "";
+
+function parseFecha(str) {
+  const s = (str || "").toString().trim();
+  if (!s) return new Date(0);
+  // dd/mm/yyyy o d/m/yy
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+    let [d,m,y] = s.split("/");
+    if (y.length === 2) y = "20" + y;
+    return new Date(+y, +m - 1, +d);
+  }
+  // yyyy-mm-dd (o con hora)
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(s)) {
+    return new Date(s);
+  }
+  // fallback (Date intenta parsear best-effort)
+  return new Date(s);
+}
+
+function cargar() {
+  Papa.parse(URL, {
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+    complete: (results) => {
+      const headers = results.meta.fields || [];
+      // construir mapa de headers normalizados -> header real
+      keyMap = {};
+      headers.forEach(h => { keyMap[norm(h)] = h; });
+      // asegurar que tenemos las columnas necesarias (aunque cambie mayúsculas)
+      columnasMostrar.forEach(des => {
+        if (!keyMap[norm(des)]) {
+          // si falta, crea una entrada vacía para evitar errores de acceso
+          keyMap[norm(des)] = des; 
+        }
+      });
+
+      // Filtrar filas realmente vacías y quedarnos con registros que tengan Ticket o Solicitud
+      registros = (results.data || []).filter(obj => {
+        const tieneContenido = Object.values(obj).some(v => (v ?? "").toString().trim() !== "");
+        const tieneClave = (obj[keyMap[norm("Ticket")]] ?? "").toString().trim() !== "" ||
+                           (obj[keyMap[norm("Solicitud")]] ?? "").toString().trim() !== "";
+        return tieneContenido && tieneClave;
+      });
+
+      construirVista();
+    },
+    error: (err) => console.error("Error parseando CSV:", err)
+  });
+}
 
 function construirVista() {
-  if (rowsOriginal.length === 0) return;
+  if (!registros.length) {
+    thead.innerHTML = ""; tbody.innerHTML = "";
+    contador.textContent = "Total: 0";
+    resumenEstados.innerHTML = "";
+    return;
+  }
 
-  const headersOriginal = rowsOriginal[0].map(h => h.trim());
-  const idxEstatus = headersOriginal.findIndex(h => h.toLowerCase() === "estatus");
-  const idxFecha = headersOriginal.findIndex(h => h.toLowerCase() === "fecha");
+  // Encabezados de la tabla (en el orden solicitado)
+  thead.innerHTML = columnasMostrar.map(h => `<th>${h}</th>`).join("");
 
-  // Índices de las columnas que sí queremos mostrar en la tabla
-  const idxMostrar = columnasMostrar.map(c => headersOriginal.findIndex(h => h.toLowerCase() === c.toLowerCase()));
+  // Texto de búsqueda
+  const q = norm(inputBuscar.value);
 
-  // Filtrar registros según búsqueda y estado
-  let filtradosOriginal = rowsOriginal.slice(1).filter(r => r.length > 0);
-  const textoBusqueda = inputBuscar.value.trim().toLowerCase();
-
-  filtradosOriginal = filtradosOriginal.filter(r => {
-    const est = (r[idxEstatus] || "").toLowerCase();
-    const estadoOk = filtroEstado === "Todos" || est === filtroEstado.toLowerCase();
-    const buscaOk = textoBusqueda === "" || r.some(c => (c || "").toLowerCase().includes(textoBusqueda));
-    return estadoOk && buscaOk;
+  // Filtro por estado + búsqueda sobre columnas visibles
+  const filtrados = registros.filter(row => {
+    const est = norm(getVal(row, "ESTATUS"));
+    const estadoOk = (filtroEstado === "Todos") || (est === norm(filtroEstado));
+    const textoOk = q === "" || columnasMostrar.some(col => norm(getVal(row, col)).includes(q));
+    return estadoOk && textoOk;
   });
 
-  // Ordenar por fecha (más reciente primero)
-  filtradosOriginal.sort((a, b) => {
-    const fechaA = new Date(a[idxFecha].split("/").reverse().join("-"));
-    const fechaB = new Date(b[idxFecha].split("/").reverse().join("-"));
-    return fechaB - fechaA;
-  });
+  // Orden por Fecha descendente (más reciente primero)
+  filtrados.sort((a, b) => parseFecha(getVal(b, "Fecha")) - parseFecha(getVal(a, "Fecha")));
 
-  // Generar datos para la tabla con solo las columnas visibles
-  const headersTabla = idxMostrar.map(i => headersOriginal[i]);
-  const rowsTabla = filtradosOriginal.map(r => idxMostrar.map(i => r[i] || "No aplica"));
-
-  // Mostrar encabezados
-  thead.innerHTML = headersTabla.map(h => `<th>${h}</th>`).join("");
-
-  // Llenar tabla
+  // Render tabla
   tbody.innerHTML = "";
-  rowsTabla.forEach((filaReducida, index) => {
+  filtrados.forEach(row => {
     const tr = document.createElement("tr");
-    const est = (filtradosOriginal[index][idxEstatus] || "").toLowerCase();
+    const est = norm(getVal(row, "ESTATUS"));
     if (est.includes("proceso")) tr.classList.add("en-proceso");
-    if (est.includes("atendido")) tr.classList.add("atendido");
-    if (est.includes("cancelado")) tr.classList.add("cancelado");
+    else if (est.includes("atendido")) tr.classList.add("atendido");
+    else if (est.includes("cancelado")) tr.classList.add("cancelado");
 
-    filaReducida.forEach(c => {
+    columnasMostrar.forEach(col => {
+      const val = (getVal(row, col) || "").toString().trim();
       const td = document.createElement("td");
-      td.textContent = c && c.trim() !== "" ? c : "No aplica";
+      td.textContent = val !== "" ? val : "No aplica";
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
   });
 
   // Contador
-  contador.textContent = `Total: ${filtradosOriginal.length}`;
+  contador.textContent = `Total: ${filtrados.length}`;
 
-  // Datos para gráficas y resumen
+  // Conteos por estado (basados en lo Filtrado)
   const estados = ["En Proceso", "Atendido", "Cancelado"];
   const data = estados.map(e =>
-    filtradosOriginal.filter(r => (r[idxEstatus] || "").toLowerCase() === e.toLowerCase()).length
+    filtrados.filter(r => norm(getVal(r, "ESTATUS")) === norm(e)).length
   );
 
   // Resumen
@@ -155,16 +192,16 @@ function construirVista() {
   `;
 
   // Gráfica pastel
-  if (chartPie) chartPie.destroy();
-  chartPie = new Chart(document.getElementById("pieChart"), {
+  if (window.chartPie) window.chartPie.destroy();
+  window.chartPie = new Chart(document.getElementById("pieChart"), {
     type: 'pie',
     data: { labels: estados, datasets: [{ data, backgroundColor: ['orange', 'green', 'red'] }] },
     options: { responsive: true, maintainAspectRatio: false }
   });
 
-  // Gráfica barras (cada barra con su etiqueta)
-  if (chartBar) chartBar.destroy();
-  chartBar = new Chart(document.getElementById("barChart"), {
+  // Gráfica de barras (3 barras con su etiqueta)
+  if (window.chartBar) window.chartBar.destroy();
+  window.chartBar = new Chart(document.getElementById("barChart"), {
     type: 'bar',
     data: {
       labels: estados,
@@ -183,17 +220,20 @@ function construirVista() {
   });
 }
 
-// Botones de filtro
+// Eventos de UI
 document.getElementById("btnAll").onclick = () => { filtroEstado = "Todos"; construirVista(); };
 document.getElementById("btnProc").onclick = () => { filtroEstado = "En Proceso"; construirVista(); };
 document.getElementById("btnAten").onclick = () => { filtroEstado = "Atendido"; construirVista(); };
 document.getElementById("btnCanc").onclick = () => { filtroEstado = "Cancelado"; construirVista(); };
-inputBuscar.addEventListener("input", construirVista);
 document.getElementById("btnClear").onclick = () => {
   filtroEstado = "Todos";
   inputBuscar.value = "";
   construirVista();
 };
+inputBuscar.addEventListener("input", construirVista);
+
+// Cargar datos
+cargar();
 </script>
 
 </body>
