@@ -59,7 +59,7 @@
 <script>
 const URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRY0BZ-pqh9BXOe13dEk5RxFlGiSX1BkeKupM4b1BVtygR8KWuDE4jjEQTSd796v-JSG93fIzHM32Wd/pub?output=csv&gid=922747199";
 
-let filas = [], chartPie, chartBar, filtroEstado = "Todos";
+let rowsOriginal = [], chartPie, chartBar, filtroEstado = "Todos";
 
 const tbody = document.getElementById("tbody");
 const thead = document.getElementById("thead");
@@ -67,65 +67,70 @@ const contador = document.getElementById("contador");
 const resumenEstados = document.getElementById("resumenEstados");
 const inputBuscar = document.getElementById("buscar");
 
+// Columnas a mostrar en tabla
+const columnasMostrar = [
+  "Ticket",
+  "Fecha",
+  "Tiempo de ticket",
+  "Nombre Completo del solicitante",
+  "Solicitud",
+  "ESTATUS",
+  "FECHA DE ATENCIÓN"
+];
+
 fetch(URL)
   .then(res => res.text())
   .then(csv => {
-    filas = csv.trim().split("\n").map(r => r.split(","));
+    rowsOriginal = csv.trim().split("\n").map(r => r.split(","));
     construirVista();
   })
   .catch(err => console.error("Error cargando CSV:", err));
 
 function construirVista() {
-  if (filas.length === 0) return;
+  if (rowsOriginal.length === 0) return;
 
-  const headersOriginal = filas[0].map(h => h.trim());
+  const headersOriginal = rowsOriginal[0].map(h => h.trim());
   const idxEstatus = headersOriginal.findIndex(h => h.toLowerCase() === "estatus");
   const idxFecha = headersOriginal.findIndex(h => h.toLowerCase() === "fecha");
 
-  const columnasMostrar = [
-    "Ticket",
-    "Fecha",
-    "Tiempo de ticket",
-    "Nombre Completo del solicitante",
-    "Solicitud",
-    "ESTATUS",
-    "FECHA DE ATENCIÓN"
-  ];
-
+  // Índices de las columnas que sí queremos mostrar en la tabla
   const idxMostrar = columnasMostrar.map(c => headersOriginal.findIndex(h => h.toLowerCase() === c.toLowerCase()));
 
-  const headers = idxMostrar.map(i => headersOriginal[i]);
-  const rows = filas.slice(1).filter(r => r.length > 0).map(r => idxMostrar.map(i => r[i] || ""));
-
-  thead.innerHTML = headers.map(h => `<th>${h}</th>`).join("");
-  tbody.innerHTML = "";
-
+  // Filtrar registros según búsqueda y estado
+  let filtradosOriginal = rowsOriginal.slice(1).filter(r => r.length > 0);
   const textoBusqueda = inputBuscar.value.trim().toLowerCase();
 
-  // Filtrar datos según estado y búsqueda
-  let filtrados = rows.filter(r => {
-    const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
+  filtradosOriginal = filtradosOriginal.filter(r => {
+    const est = (r[idxEstatus] || "").toLowerCase();
     const estadoOk = filtroEstado === "Todos" || est === filtroEstado.toLowerCase();
     const buscaOk = textoBusqueda === "" || r.some(c => (c || "").toLowerCase().includes(textoBusqueda));
     return estadoOk && buscaOk;
   });
 
-  // Ordenar por fecha descendente (más reciente primero)
-  filtrados.sort((a, b) => {
-    const fechaA = new Date(a[headers.findIndex(h => h.toLowerCase() === "fecha")].split("/").reverse().join("-"));
-    const fechaB = new Date(b[headers.findIndex(h => h.toLowerCase() === "fecha")].split("/").reverse().join("-"));
+  // Ordenar por fecha (más reciente primero)
+  filtradosOriginal.sort((a, b) => {
+    const fechaA = new Date(a[idxFecha].split("/").reverse().join("-"));
+    const fechaB = new Date(b[idxFecha].split("/").reverse().join("-"));
     return fechaB - fechaA;
   });
 
-  contador.textContent = `Total: ${filtrados.length}`;
+  // Generar datos para la tabla con solo las columnas visibles
+  const headersTabla = idxMostrar.map(i => headersOriginal[i]);
+  const rowsTabla = filtradosOriginal.map(r => idxMostrar.map(i => r[i] || "No aplica"));
 
-  filtrados.forEach(fila => {
+  // Mostrar encabezados
+  thead.innerHTML = headersTabla.map(h => `<th>${h}</th>`).join("");
+
+  // Llenar tabla
+  tbody.innerHTML = "";
+  rowsTabla.forEach((filaReducida, index) => {
     const tr = document.createElement("tr");
-    const est = (fila[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
+    const est = (filtradosOriginal[index][idxEstatus] || "").toLowerCase();
     if (est.includes("proceso")) tr.classList.add("en-proceso");
     if (est.includes("atendido")) tr.classList.add("atendido");
     if (est.includes("cancelado")) tr.classList.add("cancelado");
-    fila.forEach(c => {
+
+    filaReducida.forEach(c => {
       const td = document.createElement("td");
       td.textContent = c && c.trim() !== "" ? c : "No aplica";
       tr.appendChild(td);
@@ -133,19 +138,23 @@ function construirVista() {
     tbody.appendChild(tr);
   });
 
-  const estados = ["En Proceso", "Atendido", "Cancelado"];
-  const data = estados.map(e => filtrados.filter(r => {
-    const est = (r[headers.findIndex(h => h.toLowerCase() === "estatus")] || "").toLowerCase();
-    return est === e.toLowerCase();
-  }).length);
+  // Contador
+  contador.textContent = `Total: ${filtradosOriginal.length}`;
 
-  // Resumen numérico (basado en filtrados)
+  // Datos para gráficas y resumen
+  const estados = ["En Proceso", "Atendido", "Cancelado"];
+  const data = estados.map(e =>
+    filtradosOriginal.filter(r => (r[idxEstatus] || "").toLowerCase() === e.toLowerCase()).length
+  );
+
+  // Resumen
   resumenEstados.innerHTML = `
     <div class="resumen-item resumen-proceso">En Proceso: ${data[0]}</div>
     <div class="resumen-item resumen-atendido">Atendido: ${data[1]}</div>
     <div class="resumen-item resumen-cancelado">Cancelado: ${data[2]}</div>
   `;
 
+  // Gráfica pastel
   if (chartPie) chartPie.destroy();
   chartPie = new Chart(document.getElementById("pieChart"), {
     type: 'pie',
@@ -153,6 +162,7 @@ function construirVista() {
     options: { responsive: true, maintainAspectRatio: false }
   });
 
+  // Gráfica barras (cada barra con su etiqueta)
   if (chartBar) chartBar.destroy();
   chartBar = new Chart(document.getElementById("barChart"), {
     type: 'bar',
@@ -167,12 +177,13 @@ function construirVista() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } }, // Solo etiquetas en eje X
+      plugins: { legend: { display: false } },
       scales: { y: { beginAtZero: true } }
     }
   });
 }
 
+// Botones de filtro
 document.getElementById("btnAll").onclick = () => { filtroEstado = "Todos"; construirVista(); };
 document.getElementById("btnProc").onclick = () => { filtroEstado = "En Proceso"; construirVista(); };
 document.getElementById("btnAten").onclick = () => { filtroEstado = "Atendido"; construirVista(); };
