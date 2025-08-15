@@ -60,9 +60,9 @@
 <script>
 const URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRY0BZ-pqh9BXOe13dEk5RxFlGiSX1BkeKupM4b1BVtygR8KWuDE4jjEQTSd796v-JSG93fIzHM32Wd/pub?output=csv&gid=922747199";
 
-let registros = [];           // objetos {columna: valor} del CSV
-let keyMap = {};              // mapa de nombre normalizado -> nombre real
-let filtroEstado = "Todos";   // "Todos" | "En Proceso" | "Atendido" | "Cancelado"
+let registros = [];
+let keyMap = {};
+let filtroEstado = "Todos";
 
 const columnasMostrar = [
   "Ticket",
@@ -83,23 +83,6 @@ const inputBuscar = document.getElementById("buscar");
 const norm = s => (s ?? "").toString().trim().toLowerCase();
 const getVal = (row, desired) => row[keyMap[norm(desired)]] ?? "";
 
-function parseFecha(str) {
-  const s = (str || "").toString().trim();
-  if (!s) return new Date(0);
-  // dd/mm/yyyy o d/m/yy
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
-    let [d,m,y] = s.split("/");
-    if (y.length === 2) y = "20" + y;
-    return new Date(+y, +m - 1, +d);
-  }
-  // yyyy-mm-dd (o con hora)
-  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(s)) {
-    return new Date(s);
-  }
-  // fallback (Date intenta parsear best-effort)
-  return new Date(s);
-}
-
 function cargar() {
   Papa.parse(URL, {
     download: true,
@@ -107,25 +90,19 @@ function cargar() {
     skipEmptyLines: true,
     complete: (results) => {
       const headers = results.meta.fields || [];
-      // construir mapa de headers normalizados -> header real
       keyMap = {};
       headers.forEach(h => { keyMap[norm(h)] = h; });
-      // asegurar que tenemos las columnas necesarias (aunque cambie mayúsculas)
       columnasMostrar.forEach(des => {
         if (!keyMap[norm(des)]) {
-          // si falta, crea una entrada vacía para evitar errores de acceso
-          keyMap[norm(des)] = des; 
+          keyMap[norm(des)] = des;
         }
       });
-
-      // Filtrar filas realmente vacías y quedarnos con registros que tengan Ticket o Solicitud
       registros = (results.data || []).filter(obj => {
         const tieneContenido = Object.values(obj).some(v => (v ?? "").toString().trim() !== "");
         const tieneClave = (obj[keyMap[norm("Ticket")]] ?? "").toString().trim() !== "" ||
                            (obj[keyMap[norm("Solicitud")]] ?? "").toString().trim() !== "";
         return tieneContenido && tieneClave;
       });
-
       construirVista();
     },
     error: (err) => console.error("Error parseando CSV:", err)
@@ -140,13 +117,10 @@ function construirVista() {
     return;
   }
 
-  // Encabezados de la tabla (en el orden solicitado)
   thead.innerHTML = columnasMostrar.map(h => `<th>${h}</th>`).join("");
 
-  // Texto de búsqueda
   const q = norm(inputBuscar.value);
 
-  // Filtro por estado + búsqueda sobre columnas visibles
   const filtrados = registros.filter(row => {
     const est = norm(getVal(row, "ESTATUS"));
     const estadoOk = (filtroEstado === "Todos") || (est === norm(filtroEstado));
@@ -154,10 +128,13 @@ function construirVista() {
     return estadoOk && textoOk;
   });
 
-  // Orden por Fecha descendente (más reciente primero)
-  filtrados.sort((a, b) => parseFecha(getVal(b, "Fecha")) - parseFecha(getVal(a, "Fecha")));
+  // Orden por Ticket descendente (último primero)
+  filtrados.sort((a, b) => {
+    const tA = parseInt(getVal(a, "Ticket"), 10) || 0;
+    const tB = parseInt(getVal(b, "Ticket"), 10) || 0;
+    return tB - tA;
+  });
 
-  // Render tabla
   tbody.innerHTML = "";
   filtrados.forEach(row => {
     const tr = document.createElement("tr");
@@ -175,23 +152,19 @@ function construirVista() {
     tbody.appendChild(tr);
   });
 
-  // Contador
   contador.textContent = `Total: ${filtrados.length}`;
 
-  // Conteos por estado (basados en lo Filtrado)
   const estados = ["En Proceso", "Atendido", "Cancelado"];
   const data = estados.map(e =>
     filtrados.filter(r => norm(getVal(r, "ESTATUS")) === norm(e)).length
   );
 
-  // Resumen
   resumenEstados.innerHTML = `
     <div class="resumen-item resumen-proceso">En Proceso: ${data[0]}</div>
     <div class="resumen-item resumen-atendido">Atendido: ${data[1]}</div>
     <div class="resumen-item resumen-cancelado">Cancelado: ${data[2]}</div>
   `;
 
-  // Gráfica pastel
   if (window.chartPie) window.chartPie.destroy();
   window.chartPie = new Chart(document.getElementById("pieChart"), {
     type: 'pie',
@@ -199,7 +172,6 @@ function construirVista() {
     options: { responsive: true, maintainAspectRatio: false }
   });
 
-  // Gráfica de barras (3 barras con su etiqueta)
   if (window.chartBar) window.chartBar.destroy();
   window.chartBar = new Chart(document.getElementById("barChart"), {
     type: 'bar',
@@ -220,7 +192,6 @@ function construirVista() {
   });
 }
 
-// Eventos de UI
 document.getElementById("btnAll").onclick = () => { filtroEstado = "Todos"; construirVista(); };
 document.getElementById("btnProc").onclick = () => { filtroEstado = "En Proceso"; construirVista(); };
 document.getElementById("btnAten").onclick = () => { filtroEstado = "Atendido"; construirVista(); };
@@ -232,7 +203,6 @@ document.getElementById("btnClear").onclick = () => {
 };
 inputBuscar.addEventListener("input", construirVista);
 
-// Cargar datos
 cargar();
 </script>
 
